@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AKU Market — Curated Cross-Border Deals</title>
+<meta name="description" content="AKU Market: curated gadgets, home & lifestyle products shipped worldwide at wholesale-edge prices.">
+<link rel="stylesheet" href="assets/styles.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛍️</text></svg>">
+</head>
+<body>
+<main class="container">
+  <section class="hero">
+    <h1>Global deals, <em>curated</em> for you.</h1>
+    <p>Hand-picked products sourced at wholesale-edge prices and shipped to your door. Free buyer account — no subscription, ever.</p>
+    <div class="badges">
+      <span class="badge">🚚 Worldwide shipping</span>
+      <span class="badge">🔒 Secure checkout</span>
+      <span class="badge">💬 Support: aku.apps.final@gmail.com</span>
+    </div>
+  </section>
+
+  <div class="chips" id="chips"></div>
+
+  <h2 class="section-title">Products <span class="count" id="resultCount"></span></h2>
+  <div class="grid" id="grid"></div>
+  <div class="empty hidden" id="empty">No products match your search. <a href="index.html" style="color:var(--accent)">Clear filters</a></div>
+</main>
+
+<script src="assets/products.js"></script>
+<script src="assets/app.js"></script>
+<script>
+AKU.shell("home");
+
+const grid = document.getElementById("grid");
+const chipsEl = document.getElementById("chips");
+const emptyEl = document.getElementById("empty");
+const countEl = document.getElementById("resultCount");
+
+let activeCat = "All";
+const q = (new URLSearchParams(location.search).get("q") || "").toLowerCase();
+
+function renderChips() {
+  chipsEl.innerHTML = window.AKU_CATEGORIES.map(c =>
+    `<button class="chip ${c === activeCat ? "active" : ""}" data-cat="${c}">${c}</button>`
+  ).join("");
+  chipsEl.querySelectorAll(".chip").forEach(b =>
+    b.addEventListener("click", () => { activeCat = b.dataset.cat; render(); }));
+}
+
+function render() {
+  renderChips();
+  const list = window.AKU_PRODUCTS.filter(p =>
+    (activeCat === "All" || p.category === activeCat) &&
+    (!q || p.name.toLowerCase().includes(q) || p.category.toLowerCase().includes(q))
+  );
+  countEl.textContent = list.length + " items" + (q ? ` for “${q}”` : "");
+  grid.innerHTML = list.map(AKU.productCard).join("");
+  emptyEl.classList.toggle("hidden", list.length > 0);
+}
+render();
+</script>
+</body>
+</html>

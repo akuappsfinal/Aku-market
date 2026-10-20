@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Product — AKU Market</title>
+<link rel="stylesheet" href="assets/styles.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛍️</text></svg>">
+</head>
+<body>
+<main class="container">
+  <a class="back-link" href="index.html">← Back to shop</a>
+  <div class="pd" id="pd"></div>
+
+  <h2 class="section-title">You may also like</h2>
+  <div class="grid" id="related"></div>
+</main>
+
+<script src="assets/products.js"></script>
+<script src="assets/app.js"></script>
+<script>
+AKU.shell("home");
+
+const id = new URLSearchParams(location.search).get("id");
+const p = window.AKU_PRODUCTS.find(x => x.id === id);
+const pd = document.getElementById("pd");
+
+if (!p) {
+  pd.innerHTML = `<div class="empty">Product not found. <a href="index.html" style="color:var(--accent)">Back to shop</a></div>`;
+} else {
+  document.title = p.name + " — AKU Market";
+  const variantName = Object.keys(p.variants)[0];
+  const options = p.variants[variantName];
+  let selected = options[0];
+  let qty = 1;
+
+  pd.innerHTML = `
+    <div class="pd-img" style="background:${p.bg}"><span>${p.icon}</span></div>
+    <div>
+      <h1>${p.name}</h1>
+      <div class="pd-sub">${AKU.stars(p.rating)} ${p.rating} · ${p.sold.toLocaleString()} sold · ${p.category}</div>
+      <div class="pd-price-row">
+        <span class="pd-price">${AKU.fmt(p.price)}</span>
+        <span class="old-price">${AKU.fmt(p.oldPrice)}</span>
+        <span class="badge">-${Math.round((1 - p.price / p.oldPrice) * 100)}%</span>
+      </div>
+      <div class="variant-group">
+        <h3>${variantName}</h3>
+        <div class="variant-opts" id="opts">
+          ${options.map(o => `<button class="variant-opt ${o === selected ? "active" : ""}" data-v="${o}">${o}</button>`).join("")}
+        </div>
+      </div>
+      <div class="qty-row">
+        <button class="qty-btn" id="minus" aria-label="Decrease quantity">−</button>
+        <b id="qty">${qty}</b>
+        <button class="qty-btn" id="plus" aria-label="Increase quantity">+</button>
+        <span class="pd-sub">${p.stock} in stock</span>
+      </div>
+      <div class="pd-actions">
+        <button class="btn" id="add">🛒 Add to cart</button>
+        <button class="btn secondary" id="buy">Buy now</button>
+      </div>
+      <div class="info-list">
+        <div><span>Shipping</span><span>✈ Standard · ${p.ship}</span></div>
+        <div><span>Delivery estimate</span><span>${p.ship} (worldwide)</span></div>
+        <div><span>Returns</span><span>Contact ${window.AKU_EMAIL} within 14 days</span></div>
+        <div><span>Description</span><span style="text-align:right;max-width:60%">${p.desc}</span></div>
+      </div>
+    </div>`;
+
+  pd.querySelectorAll(".variant-opt").forEach(b =>
+    b.addEventListener("click", () => {
+      selected = b.dataset.v;
+      pd.querySelectorAll(".variant-opt").forEach(x => x.classList.toggle("active", x === b));
+    }));
+
+  const qtyEl = document.getElementById("qty");
+  document.getElementById("minus").onclick = () => { qty = Math.max(1, qty - 1); qtyEl.textContent = qty; };
+  document.getElementById("plus").onclick = () => { qty = Math.min(p.stock, qty + 1); qtyEl.textContent = qty; };
+  document.getElementById("add").onclick = () => AKU.addToCart(p.id, selected, qty);
+  document.getElementById("buy").onclick = () => { AKU.addToCart(p.id, selected, qty); location.href = "cart.html"; };
+
+  const rel = window.AKU_PRODUCTS.filter(x => x.category === p.category && x.id !== p.id).slice(0, 4);
+  document.getElementById("related").innerHTML = (rel.length ? rel : window.AKU_PRODUCTS.filter(x => x.id !== p.id).slice(0, 4))
+    .map(AKU.productCard).join("");
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin — AKU Market</title>
+<meta name="robots" content="noindex,nofollow">
+<link rel="stylesheet" href="assets/styles.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛍️</text></svg>">
+</head>
+<body>
+<main class="container">
+  <!-- login gate -->
+  <div class="admin-login" id="gate">
+    <h1>🔐 Seller admin</h1>
+    <p>This area is password protected. Orders and fulfillment tools for the store owner only.</p>
+    <form class="form" id="loginForm">
+      <input type="password" id="pw" placeholder="Admin password" autocomplete="current-password" required>
+      <button class="btn" type="submit">Unlock dashboard</button>
+      <div class="notice warn hidden" id="badPw">Wrong password.</div>
+    </form>
+  </div>
+
+  <!-- dashboard -->
+  <div id="dash" class="hidden">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.6rem;margin-bottom:1rem">
+      <h1 class="page-title" style="margin:0">📦 Order dashboard</h1>
+      <button class="btn secondary small" id="lock">Lock</button>
+    </div>
+
+    <div class="notice">Orders placed on <b>this device</b> appear here (stored locally in the browser). New orders also arrive by email at
+      <a href="mailto:aku.apps.final@gmail.com" style="color:var(--accent)">aku.apps.final@gmail.com</a>.
+      After buying the item on AliExpress for the customer, paste the tracking number below and mark fulfilled.</div>
+
+    <div class="stat-grid" id="stats"></div>
+    <div id="orders"></div>
+
+    <div class="danger-zone">
+      <button class="btn secondary small" id="exportBtn">⬇ Export orders (JSON)</button>
+      <button class="btn secondary small" id="clearBtn" style="border-color:var(--red);color:var(--red)">Clear fulfilled orders</button>
+    </div>
+  </div>
+</main>
+
+<script src="assets/products.js"></script>
+<script src="assets/app.js"></script>
+<script>
+AKU.shell("");
+
+/* --- auth gate (SHA-256 of the admin password) --- */
+const HASH = "e5c8e9add4737ab16374b47b10b4e4086362b1cab16cdd84d578a8892649ff88";
+const SESSION = "aku_admin_ok";
+
+async function sha256(text) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+function unlocked() { return sessionStorage.getItem(SESSION) === "1"; }
+function show() {
+  document.getElementById("gate").classList.toggle("hidden", unlocked());
+  document.getElementById("dash").classList.toggle("hidden", !unlocked());
+  if (unlocked()) render();
+}
+
+document.getElementById("loginForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  const ok = (await sha256(document.getElementById("pw").value)) === HASH;
+  if (ok) { sessionStorage.setItem(SESSION, "1"); show(); }
+  else document.getElementById("badPw").classList.remove("hidden");
+});
+document.getElementById("lock").onclick = () => { sessionStorage.removeItem(SESSION); show(); };
+
+/* --- dashboard --- */
+function render() {
+  const orders = AKU.getOrders();
+  const pending = orders.filter(o => o.status === "pending");
+  const revenue = orders.filter(o => o.status === "fulfilled").reduce((s, o) => s + o.total, 0);
+  document.getElementById("stats").innerHTML = `
+    <div class="stat"><b>${orders.length}</b><span>Total orders</span></div>
+    <div class="stat"><b style="color:var(--accent2)">${pending.length}</b><span>Pending fulfillment</span></div>
+    <div class="stat"><b style="color:var(--green)">${orders.length - pending.length}</b><span>Fulfilled</span></div>
+    <div class="stat"><b>${AKU.fmt(revenue)}</b><span>Fulfilled revenue</span></div>`;
+
+  document.getElementById("orders").innerHTML = orders.length ? orders.map((o, i) => `
+    <div class="order">
+      <div class="order-head">
+        <span class="order-id">${o.id}</span>
+        <span class="status ${o.status}">${o.status.toUpperCase()}</span>
+      </div>
+      <div class="sub" style="color:var(--muted);font-size:.8rem">${new Date(o.created).toLocaleString()}</div>
+      <div class="order-items">${o.items.map(it => `${it.qty}× ${it.name}${it.variant ? " (" + it.variant + ")" : ""}`).join("<br>")}</div>
+      <div style="font-size:.85rem"><b>Total: ${AKU.fmt(o.total)}</b> <span style="color:var(--muted)">(incl. shipping ${AKU.fmt(o.shipping)})</span></div>
+      <div style="font-size:.82rem;color:var(--muted);margin-top:.35rem">
+        ${o.customer.name} · <a href="mailto:${o.customer.email}" style="color:var(--accent)">${o.customer.email}</a><br>
+        ${o.customer.address}, ${o.customer.city}, ${o.customer.zip}, ${o.customer.country}
+        ${o.customer.note ? "<br>📝 " + o.customer.note : ""}
+        ${o.tracking ? "<br>🚚 Tracking: <b style='color:var(--text)'>" + o.tracking + "</b>" : ""}
+      </div>
+      <form data-i="${i}">
+        <input name="tracking" placeholder="Tracking number" value="${o.tracking || ""}">
+        <button class="btn small secondary" type="submit">Save tracking</button>
+        ${o.status === "pending"
+          ? `<button class="btn small" name="fulfill" type="submit">Mark fulfilled</button>`
+          : `<button class="btn small secondary" name="unfulfill" type="submit">Reopen</button>`}
+      </form>
+    </div>`).join("")
+    : `<div class="empty">No orders yet. Orders placed on this device appear here automatically; email orders go to ${window.AKU_EMAIL}.</div>`;
+
+  document.querySelectorAll("#orders form").forEach(form => form.addEventListener("submit", e => {
+    e.preventDefault();
+    const i = +form.dataset.i;
+    const orders = AKU.getOrders();
+    const btn = e.submitter;
+    orders[i].tracking = form.tracking.value.trim();
+    if (btn && btn.name === "fulfill") orders[i].status = "fulfilled";
+    if (btn && btn.name === "unfulfill") orders[i].status = "pending";
+    AKU.saveOrders(orders);
+    AKU.toast("Order updated ✓");
+    render();
+  }));
+}
+
+document.getElementById("exportBtn").onclick = () => {
+  const blob = new Blob([JSON.stringify(AKU.getOrders(), null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "aku-orders-" + new Date().toISOString().slice(0, 10) + ".json";
+  a.click();
+};
+document.getElementById("clearBtn").onclick = () => {
+  if (!confirm("Delete all fulfilled orders from this device?")) return;
+  AKU.saveOrders(AKU.getOrders().filter(o => o.status !== "fulfilled"));
+  render();
+};
+
+show();
+</script>
+</body>
+</html>

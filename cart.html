@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cart & Checkout — AKU Market</title>
+<link rel="stylesheet" href="assets/styles.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛍️</text></svg>">
+</head>
+<body>
+<main class="container">
+  <h1 class="page-title">🛒 Your cart</h1>
+  <div class="notice warn">Checkout note: online card payments (Stripe) are being connected. For now, place an <b>order request</b> below — we confirm stock and email you a secure payment link within 24h. You pay nothing until you receive the link.</div>
+  <div class="checkout-grid">
+    <section>
+      <div id="cartList"></div>
+      <div class="empty hidden" id="emptyCart">Your cart is empty. <a href="index.html" style="color:var(--accent)">Browse products →</a></div>
+
+      <div id="checkoutBox" class="hidden">
+        <h2 class="section-title">Shipping details</h2>
+        <form class="form" id="orderForm">
+          <div class="row2">
+            <div><label for="name">Full name *</label><input id="name" required placeholder="Jane Doe"></div>
+            <div><label for="email">Email *</label><input id="email" type="email" required placeholder="you@example.com"></div>
+          </div>
+          <div><label for="addr">Street address *</label><input id="addr" required placeholder="Street, number, apt"></div>
+          <div class="row2">
+            <div><label for="city">City *</label><input id="city" required></div>
+            <div><label for="zip">ZIP / Postal code *</label><input id="zip" required></div>
+          </div>
+          <div><label for="country">Country *</label><input id="country" required></div>
+          <div><label for="note">Order note (optional)</label><textarea id="note" rows="2" placeholder="Anything we should know?"></textarea></div>
+          <button class="btn" type="submit">Place order request</button>
+        </form>
+      </div>
+      <div id="doneBox"></div>
+    </section>
+
+    <aside class="cart-summary" id="summaryBox">
+      <h3 style="margin-bottom:.5rem">Summary</h3>
+      <div class="summary-row"><span>Subtotal</span><span id="subTotal">$0.00</span></div>
+      <div class="summary-row"><span>Shipping</span><span id="shipCost">$0.00</span></div>
+      <div class="summary-row total"><span>Total</span><span id="grandTotal">$0.00</span></div>
+      <p style="color:var(--muted);font-size:.78rem;margin-top:.6rem">Standard shipping is free over $30 — otherwise $2.99 flat. Estimates shown per product.</p>
+    </aside>
+  </div>
+</main>
+
+<script src="assets/products.js"></script>
+<script src="assets/app.js"></script>
+<script>
+AKU.shell("home");
+
+const listEl = document.getElementById("cartList");
+const emptyEl = document.getElementById("emptyCart");
+const checkoutBox = document.getElementById("checkoutBox");
+const summaryBox = document.getElementById("summaryBox");
+
+function shipping(total) { return total >= 30 || total === 0 ? 0 : 2.99; }
+
+function render() {
+  const cart = AKU.getCart();
+  const has = cart.length > 0;
+  emptyEl.classList.toggle("hidden", has);
+  checkoutBox.classList.toggle("hidden", !has);
+  summaryBox.classList.toggle("hidden", !has);
+
+  listEl.innerHTML = cart.map(i => `
+    <div class="cart-item">
+      <div class="cart-thumb" style="background:${i.bg}">${i.icon}</div>
+      <div>
+        <h4>${i.name}</h4>
+        <div class="sub">${i.variant ? i.variant + " · " : ""}${AKU.fmt(i.price)} each</div>
+        <div class="qty-row" style="margin:.35rem 0 0">
+          <button class="qty-btn" style="width:1.8rem;height:1.8rem;font-size:.95rem" data-act="-" data-key="${i.key}">−</button>
+          <b>${i.qty}</b>
+          <button class="qty-btn" style="width:1.8rem;height:1.8rem;font-size:.95rem" data-act="+" data-key="${i.key}">+</button>
+        </div>
+      </div>
+      <div class="cart-right">
+        <b>${AKU.fmt(i.price * i.qty)}</b>
+        <button class="link-btn" data-act="x" data-key="${i.key}">Remove</button>
+      </div>
+    </div>`).join("");
+
+  listEl.querySelectorAll("button[data-act]").forEach(b => b.addEventListener("click", () => {
+    const cart = AKU.getCart();
+    const item = cart.find(x => x.key === b.dataset.key);
+    if (!item) return;
+    if (b.dataset.act === "+") item.qty++;
+    if (b.dataset.act === "-") item.qty--;
+    if (b.dataset.act === "x" || item.qty <= 0) cart.splice(cart.indexOf(item), 1);
+    AKU.saveCart(cart);
+    render();
+  }));
+
+  const sub = AKU.cartTotal();
+  const ship = shipping(sub);
+  document.getElementById("subTotal").textContent = AKU.fmt(sub);
+  document.getElementById("shipCost").textContent = ship === 0 ? "Free" : AKU.fmt(ship);
+  document.getElementById("grandTotal").textContent = AKU.fmt(sub + ship);
+}
+render();
+
+document.getElementById("orderForm").addEventListener("submit", e => {
+  e.preventDefault();
+  const cart = AKU.getCart();
+  if (!cart.length) return;
+  const f = id => document.getElementById(id).value.trim();
+  const sub = AKU.cartTotal();
+  const order = {
+    id: "AKU-" + Date.now().toString(36).toUpperCase(),
+    created: new Date().toISOString(),
+    status: "pending",
+    customer: { name: f("name"), email: f("email"), address: f("addr"), city: f("city"), zip: f("zip"), country: f("country"), note: f("note") },
+    items: cart.map(i => ({ name: i.name, variant: i.variant, qty: i.qty, price: i.price })),
+    subtotal: sub, shipping: shipping(sub), total: sub + shipping(sub), tracking: ""
+  };
+  const orders = AKU.getOrders();
+  orders.unshift(order);
+  AKU.saveOrders(orders);
+
+  // notify the seller by email (opens the buyer's mail app, prefilled)
+  const lines = order.items.map(i => `- ${i.qty}× ${i.name}${i.variant ? " (" + i.variant + ")" : ""} — ${AKU.fmt(i.price * i.qty)}`).join("\n");
+  const body = encodeURIComponent(
+    `New order request ${order.id}\n\nItems:\n${lines}\n\nSubtotal: ${AKU.fmt(order.subtotal)}\nShipping: ${AKU.fmt(order.shipping)}\nTotal: ${AKU.fmt(order.total)}\n\nShip to:\n${order.customer.name}\n${order.customer.address}\n${order.customer.city}, ${order.customer.zip}\n${order.customer.country}\n\nBuyer email: ${order.customer.email}\nNote: ${order.customer.note || "-"}`
+  );
+  window.open(`mailto:${window.AKU_EMAIL}?subject=${encodeURIComponent("Order request " + order.id)}&body=${body}`, "_self");
+
+  AKU.saveCart([]);
+  document.getElementById("checkoutBox").classList.add("hidden");
+  summaryBox.classList.add("hidden");
+  listEl.innerHTML = "";
+  document.getElementById("doneBox").innerHTML = `
+    <div class="notice ok">
+      ✅ <b>Order request ${order.id} placed!</b><br>
+      We emailed the order to our fulfillment team and will send a secure payment link to
+      <b>${order.customer.email}</b> within 24 hours. Questions:
+      <a href="mailto:${window.AKU_EMAIL}">${window.AKU_EMAIL}</a>
+    </div>`;
+  window.scrollTo({ top: 0, behavior: "smooth" });
+});
+</script>
+</body>
+</html>
