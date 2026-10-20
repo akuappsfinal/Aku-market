@@ -2,10 +2,16 @@
 
 Curated cross-border marketplace — AliExpress-style shopping, **$0/month to run**.
 
-Live site is deployed automatically from the `main` branch via **GitHub Pages**
-(see `.github/workflows/deploy.yml`). Every push to `main` redeploys in ~1 minute.
+Live site is deployed automatically from the `main` branch via **GitHub Pages**.
 
-> First-time setup: in repo **Settings → Pages → Source**, pick **GitHub Actions**.
+> First-time setup (one minute, free):
+> 1. Repo **Settings → Pages**
+> 2. **Source:** pick **Deploy from a branch** → branch `main`, folder `/ (root)` → Save
+> 3. Done — every push to `main` redeploys in ~1 minute at
+>    `https://akuappsfinal.github.io/AKU-market/`
+>
+> (Optional alternative: add `.github/workflows/deploy.yml` and choose **GitHub Actions**
+> as the source instead — same result.)
 
 ## Pages
 
@@ -45,5 +51,4 @@ index.html / product.html / cart.html / admin.html / 404.html
 assets/styles.css      shared mobile-first styles
 assets/products.js     catalog data (swap for API later)
 assets/app.js          cart, orders, header/footer helpers
-.github/workflows/deploy.yml   GitHub Pages auto-deploy
 ```
